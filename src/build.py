@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Conservative Mihomo adblock rule merger: never broaden domain matches."""
+"""Conservative Clash + AdGuard DNS subset + hosts merger for Mihomo."""
 import argparse
 import ipaddress
 import json
@@ -7,32 +7,27 @@ import re
 import urllib.request
 from pathlib import Path
 import yaml
+from adguard_parser import parse_text_rule
 
 DOMAIN = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.I)
 
 def domain(s):
     s = s.strip().lower().rstrip('.')
-    try:
-        s = s.encode('idna').decode('ascii')
-    except UnicodeError:
-        return None
+    try: s = s.encode('idna').decode('ascii')
+    except UnicodeError: return None
     return s if DOMAIN.fullmatch(s) else None
 
 def parse_domain(s):
     s = str(s).strip()
-    if s.startswith('+.') or s.startswith('*.'):
-        d = domain(s[2:])
-        return ('suffix', d) if d else None
+    if s.startswith(('+.','*.')):
+        d = domain(s[2:]); return ('suffix', d) if d else None
     if s.startswith('.'):
-        d = domain(s[1:])
-        return ('suffix', d) if d else None
-    d = domain(s)
-    return ('exact', d) if d else None
+        d = domain(s[1:]); return ('suffix', d) if d else None
+    d = domain(s); return ('exact', d) if d else None
 
 def parse_classical(s):
     parts = [p.strip() for p in str(s).split(',')]
-    if len(parts) < 2:
-        return None
+    if len(parts) < 2: return None
     kind, value = parts[:2]
     if kind in ('DOMAIN', 'DOMAIN-SUFFIX'):
         d = domain(value)
@@ -40,91 +35,89 @@ def parse_classical(s):
     if kind in ('IP-CIDR', 'IP-CIDR6'):
         try:
             net = ipaddress.ip_network(value, strict=False)
-            if (kind == 'IP-CIDR') != (net.version == 4):
-                return None
+            if (kind == 'IP-CIDR') != (net.version == 4): return None
             return ('ip', str(net))
-        except ValueError:
-            return None
+        except ValueError: return None
     return None
 
 def allowed(kind, value, allow):
-    return any(value == d or (k == 'suffix' and (value == d or value.endswith('.' + d))) for k, d in allow)
-
-def fetch(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'MihomoAdblockBuilder/1.0'})
-    with urllib.request.urlopen(req, timeout=45) as r:
-        raw = r.read(30_000_001)
-    if len(raw) > 30_000_000:
-        raise ValueError('source exceeds 30 MB')
-    data = yaml.safe_load(raw)
-    if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
-        raise ValueError(f'Expected YAML payload list: {url}')
-    return data['payload']
+    return any(value == d or (k == 'suffix' and value.endswith('.' + d)) for k, d in allow)
 
 def allowlist_conflicts(exact, suffix, allow):
-    """Report exceptions still covered by broader generated suffix rules."""
     conflicts = []
     for kind, value in sorted(allow):
         covering = sorted(s for s in suffix if value == s or value.endswith('.' + s))
         if covering:
-            conflicts.append({'allow_rule': ('+.' if kind == 'suffix' else '') + value,
-                              'covering_suffixes': covering})
+            conflicts.append({'allow_rule': ('+.' if kind == 'suffix' else '') + value, 'covering_suffixes': covering})
     return conflicts
 
+def fetch(url, behavior):
+    req = urllib.request.Request(url, headers={'User-Agent': 'MihomoAdblockBuilder/2.0'})
+    with urllib.request.urlopen(req, timeout=60) as r: raw = r.read(30_000_001)
+    if len(raw) > 30_000_000: raise ValueError('source exceeds 30 MB: ' + url)
+    if behavior in ('domain', 'classical'):
+        data = yaml.safe_load(raw)
+        if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
+            raise ValueError('Expected YAML payload list: ' + url)
+        return data['payload']
+    if behavior in ('adguard', 'hosts'):
+        return raw.decode('utf-8-sig').splitlines()
+    raise ValueError('Unknown behavior: ' + behavior)
 
 def build(sources, allow_lines, output):
     allow = set(filter(None, (parse_domain(x.strip()) for x in allow_lines if x.strip() and not x.lstrip().startswith('#'))))
     exact, suffix, ips, classical = set(), set(), set(), set()
     stats = {}
+    seen_names = set()
     for source in sources:
         name, behavior = source['name'], source['behavior']
-        payload = fetch(source['url'])
-        if not payload:
-            raise ValueError(f'{name}: empty payload')
-        count = {'input': len(payload), 'domain': 0, 'ip': 0, 'classical': 0, 'duplicate': 0, 'allowlisted': 0}
+        if name in seen_names or name in ('output', 'allowlist_conflicts'): raise ValueError('Duplicate/reserved source name: ' + name)
+        seen_names.add(name)
+        payload = fetch(source['url'], behavior)
+        if not payload: raise ValueError(f'{name}: empty payload')
+        count = {'input': len(payload), 'domain': 0, 'ip': 0, 'classical': 0, 'duplicate': 0, 'allowlisted': 0, 'unsupported': 0, 'exceptions': 0, 'comments': 0}
         for item in payload:
-            if not isinstance(item, str):
-                raise ValueError(f'{name}: non-string rule')
-            parsed = parse_domain(item) if behavior == 'domain' else parse_classical(item)
+            if not isinstance(item, str): raise ValueError(f'{name}: non-string rule')
+            if behavior in ('adguard', 'hosts'):
+                parsed = parse_text_rule(item, behavior, domain)
+                if parsed[0] in ('skip', 'unsupported', 'exception'):
+                    field = {'skip':'comments', 'unsupported':'unsupported', 'exception':'exceptions'}[parsed[0]]
+                    count[field] += 1
+                    continue
+            else:
+                parsed = parse_domain(item) if behavior == 'domain' else parse_classical(item)
             if parsed:
                 kind, value = parsed
                 if kind == 'ip':
-                    count['duplicate'] += value in ips
+                    count['duplicate'] += int(value in ips)
                     ips.add(value); count['ip'] += 1
                 elif value:
-                    if allowed(kind, value, allow):
-                        count['allowlisted'] += 1
+                    if allowed(kind, value, allow): count['allowlisted'] += 1
                     else:
                         target = exact if kind == 'exact' else suffix
-                        count['duplicate'] += value in target
-                        target.add(value)
-                        count['domain'] += 1
+                        count['duplicate'] += int(value in target)
+                        target.add(value); count['domain'] += 1
             elif behavior == 'classical':
-                # Keep unknown/advanced rules verbatim; don't pretend they are domains.
-                if ',' not in item:
-                    raise ValueError(f'{name}: malformed classical entry: {item}')
-                count['duplicate'] += item.strip() in classical
+                if ',' not in item: raise ValueError(f'{name}: malformed classical entry: {item}')
+                count['duplicate'] += int(item.strip() in classical)
                 classical.add(item.strip()); count['classical'] += 1
             else:
                 raise ValueError(f'{name}: unsupported domain entry: {item}')
+        if behavior in ('adguard', 'hosts') and count['domain'] == 0:
+            raise ValueError(f'{name}: no convertible domain rules; possible format change')
         stats[name] = count
-    # Avoid dropping exact rules merely because a suffix rule exists.
-    # Exclude overlapping rules only when provably redundant and no allowlist ambiguity.
     domain_rules = sorted(exact) + ['+.' + d for d in sorted(suffix)]
+    if not domain_rules: raise ValueError('no domain rules generated')
+    conflicts = allowlist_conflicts(exact, suffix, allow)
+    if conflicts: raise ValueError('Unsafe allowlist conflicts: ' + json.dumps(conflicts[:10]))
     output.mkdir(parents=True, exist_ok=True)
     def dump(path, payload):
         path.write_text(yaml.safe_dump({'payload': payload}, allow_unicode=True, sort_keys=False, width=1000), encoding='utf-8')
-    if not domain_rules:
-        raise ValueError('no domain rules generated')
     dump(output / 'domain.yaml', domain_rules)
-    if ips:
-        dump(output / 'ipcidr.yaml', sorted(ips))
-    if classical:
-        dump(output / 'classical.yaml', sorted(classical))
-    stats['allowlist_conflicts'] = allowlist_conflicts(exact, suffix, allow)
+    if ips: dump(output / 'ipcidr.yaml', sorted(ips))
+    if classical: dump(output / 'classical.yaml', sorted(classical))
+    stats['allowlist_conflicts'] = conflicts
     stats['output'] = {'domain': len(domain_rules), 'ipcidr': len(ips), 'classical': len(classical)}
-    if stats['allowlist_conflicts']:
-        raise ValueError('Unsafe allowlist conflicts: a broader blocking suffix covers an allowlisted domain. Add a higher-priority DIRECT rule in FIClash or remove conflicting allowlist entries. ' + json.dumps(stats['allowlist_conflicts'][:10]))
     (output / 'stats.json').write_text(json.dumps(stats, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return stats
 

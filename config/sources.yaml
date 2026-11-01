@@ -8,3 +8,16 @@ sources:
   - name: awavenue
     url: https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Clash.yaml
     behavior: domain
+  # Additional curated lists. Existing sources are retained.
+  - name: hagezi_normal
+    url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt
+    behavior: adguard
+  - name: adguard_chinese
+    url: https://raw.githubusercontent.com/AdguardTeam/FiltersRegistry/master/filters/filter_224_Chinese/filter.txt
+    behavior: adguard
+  - name: adguard_mobile
+    url: https://raw.githubusercontent.com/AdguardTeam/FiltersRegistry/master/filters/filter_11_Mobile/filter.txt
+    behavior: adguard
+  - name: chengfeng
+    url: https://cdn.jsdelivr.net/gh/xinggsf/Adblock-Plus-Rule@master/rule.txt
+    behavior: adguard
