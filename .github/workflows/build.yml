@@ -1,0 +1,61 @@
+name: Build adblock rules
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
+permissions:
+  contents: write
+concurrency:
+  group: adblock-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python src/build.py
+      - name: Download Mihomo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          req=urllib.request.Request('https://api.github.com/repos/MetaCubeX/mihomo/releases/latest',headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+os.environ['GH_TOKEN']})
+          data=json.load(urllib.request.urlopen(req,timeout=30))
+          assets=[a for a in data['assets'] if a['name'].startswith('mihomo-linux-amd64-compatible-') and a['name'].endswith('.gz')]
+          if not assets: raise SystemExit('No compatible Mihomo release asset; fail closed')
+          url=assets[0]['browser_download_url']
+          urllib.request.urlretrieve(url,'/tmp/mihomo.gz')
+          PY
+          gzip -dc /tmp/mihomo.gz > /tmp/mihomo
+          chmod +x /tmp/mihomo
+      - name: Compile MRS
+        run: |
+          /tmp/mihomo convert-ruleset domain yaml dist/domain.yaml dist/domain.mrs
+          if [ -f dist/ipcidr.yaml ]; then /tmp/mihomo convert-ruleset ipcidr yaml dist/ipcidr.yaml dist/ipcidr.mrs; fi
+          test -s dist/domain.mrs
+      - name: Publish build branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          git init
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .
+          git commit -m "Update rules from $GITHUB_SHA"
+          git branch -M rules
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin rules

@@ -1,0 +1,2 @@
+# Exact: example.com ; suffix: +.example.com
+# Add your false-positive exceptions below.
