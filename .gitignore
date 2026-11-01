@@ -1,0 +1,23 @@
+# Generated artifacts and Python caches
+/dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Virtual environments / IDEs
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local backups and secrets
+*.bak
+.env
+.env.*
+*.pem
+*.key

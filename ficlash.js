@@ -1,10 +1,10 @@
-// FIClash subscription extension (Script mode) - CryFun/mihomo-adblock
+// FIClash subscription extension (Script mode) - CryFun/dual-core-adblock
 const main = (config) => {
   const name = 'custom-ad-domain';
   config['rule-providers'] ||= {};
   config['rule-providers'][name] = {
     type: 'http', behavior: 'domain', format: 'mrs',
-    url: 'https://raw.githubusercontent.com/CryFun/mihomo-adblock/rules/domain.mrs',
+    url: 'https://raw.githubusercontent.com/CryFun/dual-core-adblock/rules/domain.mrs',
     path: './ruleset/custom-ad-domain.mrs', interval: 86400
   };
   const obsolete = new Set(['custom-ad-domain','custom-ad-ip','custom-ad-classical','reiji-adblock','anti-ad','awavenue']);
