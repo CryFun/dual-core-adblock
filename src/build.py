@@ -124,7 +124,7 @@ def build(sources, allow_lines, output):
     stats['allowlist_conflicts'] = allowlist_conflicts(exact, suffix, allow)
     stats['output'] = {'domain': len(domain_rules), 'ipcidr': len(ips), 'classical': len(classical)}
     if stats['allowlist_conflicts']:
-        print('WARNING: Allowlist entries covered by broader blocking suffixes; see stats.json')
+        raise ValueError('Unsafe allowlist conflicts: a broader blocking suffix covers an allowlisted domain. Add a higher-priority DIRECT rule in FIClash or remove conflicting allowlist entries. ' + json.dumps(stats['allowlist_conflicts'][:10]))
     (output / 'stats.json').write_text(json.dumps(stats, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return stats
 

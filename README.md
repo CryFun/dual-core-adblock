@@ -1,25 +1,28 @@
-# Mihomo / FIClash AdBlock Builder
+# Mihomo AdBlock — stable release
 
-Automatically merge three Clash ad-blocking lists, deduplicate, apply allowlist, and compile domain MRS using Mihomo. Unsupported classical rules remain in `classical.yaml` instead of being silently converted.
+For **CryFun/mihomo-adblock**. Uses REIJI007, Anti-AD and AWAvenue Clash-format sources, conservatively merges rules, and publishes `domain.mrs` to `rules` branch daily at 02:17 UTC. FIClash loads only `domain.mrs` (no missing-file dependencies).
 
-## Deployment
+## One-time upgrade from Termux
 
-1. Create a **public** GitHub repository and upload all files (including `.github/workflows/build.yml`).
-2. In repository Settings → Actions → General, allow Actions to run and grant **Read and write permissions** to `GITHUB_TOKEN` (where available).
-3. Run Actions → Build adblock rules → Run workflow.
-4. Check that branch `rules` contains `domain.mrs`, `domain.yaml`, `stats.json` and, if generated, `classical.yaml` / `ipcidr.mrs`.
-5. Edit `ficlash.js` and replace `YOUR_GITHUB_USERNAME/YOUR_REPOSITORY`. In FIClash, open subscription → Extension → Script and paste it.
-6. To retain all supported rules, uncomment the `custom-ad-classical` and `custom-ad-ip` provider declarations **and add** `RULE-SET,custom-ad-classical,REJECT` and `RULE-SET,custom-ad-ip,REJECT,no-resolve` to `config.rules` only when those files are present.
+Download `mihomo-adblock-final-stable.zip` into the Android Download folder, then run:
 
-## Behavior and caveats
+```sh
+cd ~/github-upload
+unzip -o ~/storage/downloads/mihomo-adblock-final-stable.zip -d .
+python -m unittest discover -s tests -v  # optional if Python/PyYAML installed
+ git add .github/workflows/build.yml src tests config requirements.txt ficlash.js README.md
+ git commit -m "Install stable adblock builder"
+ git -c credential.helper= push origin main
+```
 
-- Builds daily at 02:17 UTC and on relevant pushes; FIClash checks daily.
-- Sources: REIJI007, Anti-AD, AWAvenue. Source formats are assumed based on their documented Clash variants; build fails rather than silently accepting unknown domain syntax.
-- Domain suffix and exact match semantics are preserved; no unsafe suffix widening.
-- `allowlist.txt`: `example.com` excludes exact domain; `+.example.com` excludes the suffix and its children from **generated domain entries**, but overlapping broader source suffixes may still block it. Use an explicit FIClash `DOMAIN,example.com,DIRECT` rule ahead of the adblock RULE-SET for reliable exceptions.
-- Allowlist does not override classical/IP rules. Validate actual matching behavior before treating it as a guaranteed exception.
-- The workflow force-updates only its generated `rules` branch. Do not edit that branch manually.
-- Downloaded Mihomo binary is taken from the latest official GitHub release, without checksum pinning; for a higher-assurance supply chain, pin release and SHA256.
-- Some upstream licenses require attribution or restrict redistribution. Review the upstream licenses before making generated outputs public.
-- MRS supports domain/ipcidr, not classical; complex classical rules remain YAML.
-- Test with a small set of apps first; DNS bypass, encrypted DNS, first-party ads, and in-app content filtering cannot be solved by route rules alone.
+Use your GitHub PAT when prompted. Do not share the PAT. The workflow requires GitHub Actions Contents write permissions. After push, verify Actions green and `rules/domain.mrs` exists. Import `ficlash.js` into the subscription extension Script mode if not already configured; existing working FIClash script may remain unchanged.
+
+## Safety and limitations
+
+- A failed source download, invalid input, missing/small MRS, invalid output count, or more than 30% drop vs prior stats stops publication. Existing `rules` branch remains intact. First builds require at least 1000 domain entries.
+- Exact/suffix semantics are preserved; overlapping suffix rules are not aggressively pruned. Source-order deduplication statistics are in `rules/stats.json`.
+- Allowlist is **not** a general bypass. If a broader blocked suffix covers an allowlisted domain, the build fails rather than claiming an ineffective exception. For exceptions, add a higher-priority `DOMAIN,example.com,DIRECT` in FIClash ahead of the adblock RULE-SET. Classical and IP rules are generated only if present; FIClash script does not load these optional files by default.
+- Domain routing cannot implement AdGuard cosmetic, URL-path, JavaScript or HTTPS content filters; first-party ads and apps bypassing proxy/DNS can remain.
+- Upstream source availability, GitHub runner changes, and Mihomo releases can still cause failures. Official Mihomo binary is downloaded from latest release without a pinned digest; for stronger supply-chain assurance pin a verified binary and SHA256.
+- `rules` is generated and force-updated automatically. Never manually edit that branch. For rollback, restore a known good commit on `main` and rerun the workflow, or use a previously saved MRS artifact.
+- Check upstream redistribution licenses before distributing merged outputs publicly.
