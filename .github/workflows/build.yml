@@ -26,6 +26,20 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python src/build.py
+      - name: Build summary
+        run: |
+          python - <<'PY'
+          import json, os
+          with open('dist/stats.json', encoding='utf-8') as f: stats=json.load(f)
+          lines=['## Adblock build statistics', '', '| Source | Input | Domain | IP | Classical | Duplicates | Allowlisted |', '|---|---:|---:|---:|---:|---:|---:|']
+          for name, d in stats.items():
+              if name in ('output', 'allowlist_conflicts'): continue
+              lines.append(f"| {name} | {d['input']} | {d['domain']} | {d['ip']} | {d['classical']} | {d['duplicate']} | {d['allowlisted']} |")
+          lines.append('')
+          lines.append('Output: '+str(stats['output']))
+          lines.append('Allowlist conflicts: '+str(len(stats['allowlist_conflicts'])))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f: f.write('\n'.join(lines)+'\n')
+          PY
       - name: Download Mihomo
         env:
           GH_TOKEN: ${{ github.token }}

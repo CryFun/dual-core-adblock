@@ -61,6 +61,17 @@ def fetch(url):
         raise ValueError(f'Expected YAML payload list: {url}')
     return data['payload']
 
+def allowlist_conflicts(exact, suffix, allow):
+    """Report exceptions still covered by broader generated suffix rules."""
+    conflicts = []
+    for kind, value in sorted(allow):
+        covering = sorted(s for s in suffix if value == s or value.endswith('.' + s))
+        if covering:
+            conflicts.append({'allow_rule': ('+.' if kind == 'suffix' else '') + value,
+                              'covering_suffixes': covering})
+    return conflicts
+
+
 def build(sources, allow_lines, output):
     allow = set(filter(None, (parse_domain(x.strip()) for x in allow_lines if x.strip() and not x.lstrip().startswith('#'))))
     exact, suffix, ips, classical = set(), set(), set(), set()
@@ -70,7 +81,7 @@ def build(sources, allow_lines, output):
         payload = fetch(source['url'])
         if not payload:
             raise ValueError(f'{name}: empty payload')
-        count = {'input': len(payload), 'domain': 0, 'ip': 0, 'classical': 0}
+        count = {'input': len(payload), 'domain': 0, 'ip': 0, 'classical': 0, 'duplicate': 0, 'allowlisted': 0}
         for item in payload:
             if not isinstance(item, str):
                 raise ValueError(f'{name}: non-string rule')
@@ -78,14 +89,21 @@ def build(sources, allow_lines, output):
             if parsed:
                 kind, value = parsed
                 if kind == 'ip':
+                    count['duplicate'] += value in ips
                     ips.add(value); count['ip'] += 1
-                elif value and not allowed(kind, value, allow):
-                    (exact if kind == 'exact' else suffix).add(value)
-                    count['domain'] += 1
+                elif value:
+                    if allowed(kind, value, allow):
+                        count['allowlisted'] += 1
+                    else:
+                        target = exact if kind == 'exact' else suffix
+                        count['duplicate'] += value in target
+                        target.add(value)
+                        count['domain'] += 1
             elif behavior == 'classical':
                 # Keep unknown/advanced rules verbatim; don't pretend they are domains.
                 if ',' not in item:
                     raise ValueError(f'{name}: malformed classical entry: {item}')
+                count['duplicate'] += item.strip() in classical
                 classical.add(item.strip()); count['classical'] += 1
             else:
                 raise ValueError(f'{name}: unsupported domain entry: {item}')
@@ -103,7 +121,10 @@ def build(sources, allow_lines, output):
         dump(output / 'ipcidr.yaml', sorted(ips))
     if classical:
         dump(output / 'classical.yaml', sorted(classical))
+    stats['allowlist_conflicts'] = allowlist_conflicts(exact, suffix, allow)
     stats['output'] = {'domain': len(domain_rules), 'ipcidr': len(ips), 'classical': len(classical)}
+    if stats['allowlist_conflicts']:
+        print('WARNING: Allowlist entries covered by broader blocking suffixes; see stats.json')
     (output / 'stats.json').write_text(json.dumps(stats, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return stats
 
