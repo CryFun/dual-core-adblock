@@ -57,6 +57,11 @@ jobs:
             -o /tmp/previous-stats.json || rm -f /tmp/previous-stats.json
       - name: Validate before publish
         run: python src/validate.py --previous /tmp/previous-stats.json
+      - name: Compile Xray GeoSite (ADBLOCK category)
+        run: |
+          python src/build_geosite.py --input dist/domain.yaml --output dist
+          test -s dist/adblock.dat
+          test -s dist/geosite.dat
       - name: Build summary
         run: |
           python - <<'PY'
