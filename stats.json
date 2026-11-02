@@ -1,0 +1,85 @@
+{
+  "reiji": {
+    "input": 685123,
+    "domain": 685123,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 0,
+    "allowlisted": 0,
+    "unsupported": 0,
+    "exceptions": 0,
+    "comments": 0
+  },
+  "antiad": {
+    "input": 101785,
+    "domain": 101785,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 90395,
+    "allowlisted": 0,
+    "unsupported": 0,
+    "exceptions": 0,
+    "comments": 0
+  },
+  "awavenue": {
+    "input": 972,
+    "domain": 972,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 34,
+    "allowlisted": 0,
+    "unsupported": 0,
+    "exceptions": 0,
+    "comments": 0
+  },
+  "hagezi_normal": {
+    "input": 175774,
+    "domain": 175760,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 91044,
+    "allowlisted": 0,
+    "unsupported": 0,
+    "exceptions": 0,
+    "comments": 14
+  },
+  "adguard_chinese": {
+    "input": 21995,
+    "domain": 5830,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 5810,
+    "allowlisted": 0,
+    "unsupported": 13297,
+    "exceptions": 1154,
+    "comments": 1714
+  },
+  "adguard_mobile": {
+    "input": 10085,
+    "domain": 929,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 875,
+    "allowlisted": 0,
+    "unsupported": 7455,
+    "exceptions": 381,
+    "comments": 1320
+  },
+  "chengfeng": {
+    "input": 1249,
+    "domain": 76,
+    "ip": 0,
+    "classical": 0,
+    "duplicate": 48,
+    "allowlisted": 0,
+    "unsupported": 1066,
+    "exceptions": 26,
+    "comments": 81
+  },
+  "allowlist_conflicts": [],
+  "output": {
+    "domain": 782269,
+    "ipcidr": 0,
+    "classical": 0
+  }
+}
