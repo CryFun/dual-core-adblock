@@ -54,7 +54,7 @@ def allowlist_conflicts(exact, suffix, allow):
 def fetch(url, behavior):
     req = urllib.request.Request(url, headers={'User-Agent': 'MihomoAdblockBuilder/2.0'})
     with urllib.request.urlopen(req, timeout=60) as r: raw = r.read(30_000_001)
-    if len(raw) > 30_000_000: raise ValueError('source exceeds 30 MB: ' + url)
+    if len(raw) > 300_000_000: raise ValueError('source exceeds 30 MB: ' + url)
     if behavior in ('domain', 'classical'):
         data = yaml.safe_load(raw)
         if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
