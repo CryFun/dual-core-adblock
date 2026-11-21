@@ -1,0 +1,7 @@
+{
+  "category": "ADBLOCK",
+  "domain_rules": 806302,
+  "bytes": 24362518,
+  "sha256": "b7da9725809162068eda3fcc050f45c0706c281821e94ca21a08480b676d96a0",
+  "warning": "geosite.dat is adblock-only; use adblock.dat with ext:adblock.dat:adblock to preserve built-in geosite categories"
+}
